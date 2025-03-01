@@ -3093,6 +3093,8 @@ typedef _ProxyHandler = void Function(_ProxyHttpServer server, HttpRequest reque
 
 /// A proxy handler for serving audio from a [StreamAudioSource].
 _ProxyHandler _proxyHandlerForSource(StreamAudioSource source) {
+  StreamSubscription<List<int>>? subscription;
+  late Completer<void> completer = Completer();
   Future<void> handler(_ProxyHttpServer server, HttpRequest request) async {
     final rangeRequest = _HttpRangeRequest.parse(request.headers[HttpHeaders.rangeHeader]);
 
@@ -3130,14 +3132,17 @@ _ProxyHandler _proxyHandlerForSource(StreamAudioSource source) {
       request.response.statusCode = 200;
     }
 
-    final completer = Completer<void>();
-    late StreamSubscription<List<int>> subscription;
-    subscription = stream.listen((event) {
+    if (completer.isCompleted) {
+      completer = Completer();
+    }
+
+    subscription ??= stream.listen((event) {
       request.response.add(event);
     }, onError: (Object e, StackTrace st) {
       source._player?._playbackEventSubject.addError(e, st);
     }, onDone: () {
-      subscription.cancel();
+      subscription?.cancel();
+      subscription = null;
       completer.complete();
     });
 
